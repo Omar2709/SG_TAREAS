@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use App\Models\Task;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,11 +29,15 @@ class TeamController extends Controller
         ]);
 
         $team = Team::create([
-            ...$data,
+            'name' => $data['name'],
+            'slug' => $this->uniqueTeamSlug($data['name']),
             'owner_id' => $request->user()->id,
         ]);
 
-        $team->members()->attach($request->user()->id, ['role' => 'owner']);
+        $team->members()->attach($request->user()->id, [
+            'role' => 'owner',
+            'joined_at' => now(),
+        ]);
 
         return redirect()->route('teams.index');
     }
@@ -45,7 +49,10 @@ class TeamController extends Controller
             'description' => ['nullable', 'string'],
         ]);
 
-        $team->projects()->create($data);
+        $team->projects()->create([
+            ...$data,
+            'created_by' => $request->user()->id,
+        ]);
 
         return redirect()->route('teams.index');
     }
@@ -55,14 +62,29 @@ class TeamController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'priority' => ['nullable', 'in:low,medium,high'],
+            'priority' => ['nullable', 'in:low,medium,high,urgent'],
         ]);
 
         $project->tasks()->create([
             ...$data,
+            'created_by' => $request->user()->id,
             'status' => 'pending',
         ]);
 
         return redirect()->route('teams.index');
+    }
+
+    private function uniqueTeamSlug(string $name): string
+    {
+        $baseSlug = Str::slug($name) ?: Str::random(8);
+        $slug = $baseSlug;
+        $suffix = 2;
+
+        while (Team::query()->where('slug', $slug)->exists()) {
+            $slug = "{$baseSlug}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
     }
 }

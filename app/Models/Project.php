@@ -11,11 +11,20 @@ class Project extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['team_id', 'name', 'description'];
+    protected $fillable = ['team_id', 'created_by', 'name', 'description', 'status'];
+
+    protected $attributes = [
+        'status' => 'active',
+    ];
 
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function tasks(): HasMany

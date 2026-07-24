@@ -10,15 +10,37 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'title', 'description', 'priority', 'status', 'assigned_to'];
+    protected $fillable = [
+        'project_id',
+        'created_by',
+        'assigned_to',
+        'title',
+        'description',
+        'status',
+        'priority',
+        'due_date',
+        'completed_at',
+    ];
+
+    protected $attributes = [
+        'status' => 'pending',
+        'priority' => 'medium',
+    ];
 
     protected $casts = [
         'status' => 'string',
+        'due_date' => 'date',
+        'completed_at' => 'datetime',
     ];
 
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function assignee(): BelongsTo

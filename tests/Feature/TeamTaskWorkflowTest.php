@@ -19,6 +19,7 @@ it('allows an authenticated user to create a team, project and task', function (
 
     $team = Team::query()->where('name', 'Platform Team')->firstOrFail();
 
+    expect($team->slug)->toBe('platform-team');
     expect($team->members()->whereKey($user->id)->exists())->toBeTrue();
 
     $projectResponse = $this->post("/teams/{$team->id}/projects", [
@@ -30,6 +31,8 @@ it('allows an authenticated user to create a team, project and task', function (
 
     $project = Project::query()->where('name', 'Website refresh')->firstOrFail();
     expect($project->team_id)->toBe($team->id);
+    expect($project->created_by)->toBe($user->id);
+    expect($project->status)->toBe('active');
 
     $taskResponse = $this->post("/teams/{$team->id}/projects/{$project->id}/tasks", [
         'title' => 'Create backlog',
@@ -41,5 +44,6 @@ it('allows an authenticated user to create a team, project and task', function (
 
     $task = Task::query()->where('title', 'Create backlog')->firstOrFail();
     expect($task->project_id)->toBe($project->id);
+    expect($task->created_by)->toBe($user->id);
     expect($task->status)->toBe('pending');
 });
