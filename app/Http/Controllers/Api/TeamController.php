@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\TeamMemberResource;
 use App\Http\Resources\TeamResource;
 use App\Models\Team;
-use App\Models\TeamMember;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,12 +60,25 @@ class TeamController extends Controller
 
     public function addMember(Request $request, Team $team): JsonResponse
     {
-        $this->authorizeMemberManagement($team);
+        $this->authorizeTeamAccess($team);
 
-        $data = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
-            'role' => ['required', 'in:member,admin'],
-        ]);
+        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
+
+        if (! $currentMembership || ! in_array($currentMembership->role, ['owner', 'admin'], true)) {
+            return response()->json(['message' => 'You are not allowed to add members'], 403);
+        }
+
+        if ($currentMembership->role === 'admin') {
+            $data = $request->validate([
+                'user_id' => ['required', 'exists:users,id'],
+                'role' => ['required', 'in:member'],
+            ]);
+        } else {
+            $data = $request->validate([
+                'user_id' => ['required', 'exists:users,id'],
+                'role' => ['required', 'in:member,admin'],
+            ]);
+        }
 
         $member = $team->members()->where('user_id', $data['user_id'])->first();
 
@@ -89,7 +101,13 @@ class TeamController extends Controller
 
     public function updateMember(Request $request, Team $team, User $user): JsonResponse
     {
-        $this->authorizeMemberManagement($team);
+        $this->authorizeTeamAccess($team);
+
+        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
+
+        if (! $currentMembership || $currentMembership->role !== 'owner') {
+            return response()->json(['message' => 'Only the owner can change roles'], 403);
+        }
 
         $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
 
@@ -110,19 +128,32 @@ class TeamController extends Controller
 
     public function removeMember(Team $team, User $user): JsonResponse
     {
-        $this->authorizeMemberManagement($team);
+        $this->authorizeTeamAccess($team);
 
+        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
         $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
 
         if ($membership->role === 'owner') {
             return response()->json(['message' => 'You cannot remove the owner'], 403);
         }
 
+        if ($currentMembership->user_id === $user->id) {
+            $membership->delete();
+
+            return response()->json(['message' => 'You left the team']);
+        }
+
+        if (! $currentMembership || ! in_array($currentMembership->role, ['owner', 'admin'], true)) {
+            return response()->json(['message' => 'You are not allowed to remove members'], 403);
+        }
+
+        if ($currentMembership->role === 'admin' && $membership->role !== 'member') {
+            return response()->json(['message' => 'An admin can only remove members'], 403);
+        }
+
         $membership->delete();
 
-        return response()->json([
-            'message' => 'Member removed',
-        ]);
+        return response()->json(['message' => 'Member removed']);
     }
 
     private function authorizeTeamAccess(Team $team): void
@@ -131,15 +162,6 @@ class TeamController extends Controller
         $isMember = $team->members()->where('user_id', Auth::id())->exists();
 
         if (! $isOwner && ! $isMember) {
-            abort(403);
-        }
-    }
-
-    private function authorizeMemberManagement(Team $team): void
-    {
-        $membership = $team->members()->where('user_id', Auth::id())->first();
-
-        if (! $membership || ! in_array($membership->role, ['owner', 'admin'], true)) {
             abort(403);
         }
     }

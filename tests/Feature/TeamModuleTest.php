@@ -59,7 +59,7 @@ describe('team module', function () {
         $this->actingAs($owner);
 
         $response = $this->postJson("/api/teams/{$team->id}/members", [
-            'user_id' => $newMember->id,
+            'email' => $newMember->email,
             'role' => 'member',
         ]);
 
@@ -84,27 +84,64 @@ describe('team module', function () {
         $this->actingAs($member);
 
         $response = $this->postJson("/api/teams/{$team->id}/members", [
-            'user_id' => $newMember->id,
+            'email' => $newMember->email,
             'role' => 'member',
         ]);
 
         $response->assertStatus(403);
     });
 
-    it('prevents an admin from modifying the owner', function () {
+    it('allows an admin to add only member-role users', function () {
         $owner = User::factory()->create();
         $admin = User::factory()->create();
+        $newMember = User::factory()->create();
         $team = Team::factory()->create(['owner_id' => $owner->id]);
         $team->members()->create(['user_id' => $owner->id, 'role' => 'owner', 'joined_at' => now()]);
         $team->members()->create(['user_id' => $admin->id, 'role' => 'admin', 'joined_at' => now()]);
 
         $this->actingAs($admin);
 
-        $response = $this->patchJson("/api/teams/{$team->id}/members/{$owner->id}", [
+        $response = $this->postJson("/api/teams/{$team->id}/members", [
+            'email' => $newMember->email,
             'role' => 'member',
         ]);
 
-        $response->assertStatus(403);
+        $response->assertStatus(201);
+    });
+
+    it('prevents an admin from adding an admin', function () {
+        $owner = User::factory()->create();
+        $admin = User::factory()->create();
+        $newAdmin = User::factory()->create();
+        $team = Team::factory()->create(['owner_id' => $owner->id]);
+        $team->members()->create(['user_id' => $owner->id, 'role' => 'owner', 'joined_at' => now()]);
+        $team->members()->create(['user_id' => $admin->id, 'role' => 'admin', 'joined_at' => now()]);
+
+        $this->actingAs($admin);
+
+        $response = $this->postJson("/api/teams/{$team->id}/members", [
+            'email' => $newAdmin->email,
+            'role' => 'admin',
+        ]);
+
+        $response->assertStatus(422);
+    });
+
+    it('prevents a non-owner from changing roles', function () {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $team = Team::factory()->create(['owner_id' => $owner->id]);
+        $team->members()->create(['user_id' => $owner->id, 'role' => 'owner', 'joined_at' => now()]);
+        $team->members()->create(['user_id' => $member->id, 'role' => 'member', 'joined_at' => now()]);
+
+        $this->actingAs($member);
+
+        $response = $this->patchJson("/api/teams/{$team->id}/members/{$member->id}", [
+            'role' => 'admin',
+        ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('message', 'This action is unauthorized.');
     });
 
     it('prevents deleting the owner', function () {
@@ -116,6 +153,27 @@ describe('team module', function () {
 
         $response = $this->deleteJson("/api/teams/{$team->id}/members/{$owner->id}");
 
-        $response->assertStatus(403);
+        $response->assertStatus(403)
+            ->assertJsonPath('message', 'This action is unauthorized.');
+    });
+
+    it('allows a user to leave the team', function () {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $team = Team::factory()->create(['owner_id' => $owner->id]);
+        $team->members()->create(['user_id' => $owner->id, 'role' => 'owner', 'joined_at' => now()]);
+        $team->members()->create(['user_id' => $member->id, 'role' => 'member', 'joined_at' => now()]);
+
+        $this->actingAs($member);
+
+        $response = $this->deleteJson("/api/teams/{$team->id}/members/{$member->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'You left the team');
+
+        $this->assertDatabaseMissing('team_members', [
+            'team_id' => $team->id,
+            'user_id' => $member->id,
+        ]);
     });
 });
