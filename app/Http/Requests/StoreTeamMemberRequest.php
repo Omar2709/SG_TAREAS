@@ -5,7 +5,6 @@ namespace App\Http\Requests;
 use App\Models\Team;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Auth;
 
 class StoreTeamMemberRequest extends FormRequest
 {
@@ -17,17 +16,15 @@ class StoreTeamMemberRequest extends FormRequest
             return false;
         }
 
-        $membership = $team->members()->where('user_id', Auth::id())->first();
-
-        if (! $membership) {
+        if (! $team->hasMember($this->user())) {
             return false;
         }
 
-        if ($membership->role === 'owner') {
+        if ($team->userIsOwner($this->user())) {
             return true;
         }
 
-        return $membership->role === 'admin';
+        return $team->roleOf($this->user()) === 'admin';
     }
 
     /**
@@ -41,9 +38,9 @@ class StoreTeamMemberRequest extends FormRequest
             'email' => ['required', 'email', 'exists:users,email'],
             'role' => ['required', 'in:member,admin', function (string $attribute, mixed $value, \Closure $fail): void {
                 $team = $this->route('team');
-                $membership = $team?->members()->where('user_id', Auth::id())->first();
+                $membershipRole = $team instanceof Team ? $team->roleOf($this->user()) : null;
 
-                if ($membership?->role === 'admin' && $value === 'admin') {
+                if ($membershipRole === 'admin' && $value === 'admin') {
                     $fail('An admin can only add member-role users.');
                 }
             }],

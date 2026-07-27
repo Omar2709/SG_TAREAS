@@ -62,13 +62,13 @@ class TeamController extends Controller
     {
         $this->authorizeTeamAccess($team);
 
-        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
+        $currentRole = $team->roleOf(Auth::id());
 
-        if (! $currentMembership || ! in_array($currentMembership->role, ['owner', 'admin'], true)) {
+        if (! in_array($currentRole, ['owner', 'admin'], true)) {
             return response()->json(['message' => 'You are not allowed to add members'], 403);
         }
 
-        if ($currentMembership->role === 'admin') {
+        if ($currentRole === 'admin') {
             $data = $request->validate([
                 'user_id' => ['required', 'exists:users,id'],
                 'role' => ['required', 'in:member'],
@@ -80,9 +80,7 @@ class TeamController extends Controller
             ]);
         }
 
-        $member = $team->members()->where('user_id', $data['user_id'])->first();
-
-        if ($member) {
+        if ($team->hasMember($data['user_id'])) {
             return response()->json([
                 'message' => 'User is already a member',
             ], 409);
@@ -103,17 +101,15 @@ class TeamController extends Controller
     {
         $this->authorizeTeamAccess($team);
 
-        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
-
-        if (! $currentMembership || $currentMembership->role !== 'owner') {
+        if (! $team->userIsOwner(Auth::id())) {
             return response()->json(['message' => 'Only the owner can change roles'], 403);
         }
 
-        $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
-
-        if ($membership->role === 'owner') {
+        if ($team->userIsOwner($user)) {
             return response()->json(['message' => 'You cannot modify the owner'], 403);
         }
+
+        $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
 
         $data = $request->validate([
             'role' => ['required', 'in:member,admin'],
@@ -130,24 +126,24 @@ class TeamController extends Controller
     {
         $this->authorizeTeamAccess($team);
 
-        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
-        $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
-
-        if ($membership->role === 'owner') {
+        $currentRole = $team->roleOf(Auth::id());
+        if ($team->userIsOwner($user)) {
             return response()->json(['message' => 'You cannot remove the owner'], 403);
         }
 
-        if ($currentMembership->user_id === $user->id) {
+        $membership = $team->members()->where('user_id', $user->id)->firstOrFail();
+
+        if (Auth::id() === $user->id) {
             $membership->delete();
 
             return response()->json(['message' => 'You left the team']);
         }
 
-        if (! $currentMembership || ! in_array($currentMembership->role, ['owner', 'admin'], true)) {
+        if (! in_array($currentRole, ['owner', 'admin'], true)) {
             return response()->json(['message' => 'You are not allowed to remove members'], 403);
         }
 
-        if ($currentMembership->role === 'admin' && $membership->role !== 'member') {
+        if ($currentRole === 'admin' && $membership->role !== 'member') {
             return response()->json(['message' => 'An admin can only remove members'], 403);
         }
 
@@ -158,10 +154,7 @@ class TeamController extends Controller
 
     private function authorizeTeamAccess(Team $team): void
     {
-        $isOwner = $team->owner_id === Auth::id();
-        $isMember = $team->members()->where('user_id', Auth::id())->exists();
-
-        if (! $isOwner && ! $isMember) {
+        if (! $team->hasMember(Auth::id())) {
             abort(403);
         }
     }

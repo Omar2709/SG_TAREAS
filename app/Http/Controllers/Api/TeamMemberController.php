@@ -28,7 +28,7 @@ class TeamMemberController extends Controller
     {
         $user = User::where('email', $request->input('email'))->firstOrFail();
 
-        if ($team->members()->where('user_id', $user->id)->exists()) {
+        if ($team->hasMember($user)) {
             return response()->json(['message' => 'User is already a member'], 409);
         }
 
@@ -47,11 +47,11 @@ class TeamMemberController extends Controller
     {
         Gate::authorize('updateMember', $team);
 
-        $membership = $team->members()->where('user_id', $member->id)->firstOrFail();
-
-        if ($membership->role === 'owner') {
+        if ($team->userIsOwner($member)) {
             return response()->json(['message' => 'You cannot modify the owner'], 403);
         }
+
+        $membership = $team->members()->where('user_id', $member->id)->firstOrFail();
 
         $membership->update(['role' => $request->input('role')]);
 
@@ -64,11 +64,11 @@ class TeamMemberController extends Controller
     {
         Gate::authorize('removeMember', $team);
 
-        $membership = $team->members()->where('user_id', $member->id)->firstOrFail();
-
-        if ($membership->role === 'owner') {
+        if ($team->userIsOwner($member)) {
             throw new AuthorizationException('This action is unauthorized.');
         }
+
+        $membership = $team->members()->where('user_id', $member->id)->firstOrFail();
 
         if (Auth::id() === $member->id) {
             $membership->delete();
@@ -76,9 +76,9 @@ class TeamMemberController extends Controller
             return response()->json(['message' => 'You left the team']);
         }
 
-        $currentMembership = $team->members()->where('user_id', Auth::id())->first();
+        $currentRole = $team->roleOf(Auth::id());
 
-        if ($currentMembership?->role === 'admin' && $membership->role !== 'member') {
+        if ($currentRole === 'admin' && $membership->role !== 'member') {
             return response()->json(['message' => 'An admin can only remove members'], 403);
         }
 

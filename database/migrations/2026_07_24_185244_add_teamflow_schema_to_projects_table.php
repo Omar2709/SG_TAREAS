@@ -8,10 +8,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('projects', function (Blueprint $table) {
-            $table->foreignId('created_by')->after('team_id')->constrained('users')->restrictOnDelete();
-            $table->string('status')->default('active')->after('description')->index();
-        });
+        if (! Schema::hasColumn('projects', 'created_by')) {
+            Schema::table('projects', function (Blueprint $table) {
+                $table->foreignId('created_by')->after('team_id')->constrained('users')->restrictOnDelete();
+            });
+        }
+
+        if (! Schema::hasColumn('projects', 'status')) {
+            Schema::table('projects', function (Blueprint $table) {
+                $table->string('status')->default('active')->after('description')->index();
+            });
+        }
     }
 
     public function down(): void

@@ -2,21 +2,14 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Team;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateTeamMemberRequest extends FormRequest
+class StoreProjectRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $team = $this->route('team');
-
-        if (! $team instanceof Team) {
-            return false;
-        }
-
-        return $team->userIsOwner($this->user());
+        return true;
     }
 
     /**
@@ -27,7 +20,8 @@ class UpdateTeamMemberRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', 'in:member,admin'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
         ];
     }
 }

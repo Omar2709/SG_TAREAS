@@ -2,21 +2,16 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Team;
+use App\Enums\ProjectStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class UpdateTeamMemberRequest extends FormRequest
+class UpdateProjectRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $team = $this->route('team');
-
-        if (! $team instanceof Team) {
-            return false;
-        }
-
-        return $team->userIsOwner($this->user());
+        return true;
     }
 
     /**
@@ -27,7 +22,10 @@ class UpdateTeamMemberRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', 'in:member,admin'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'description' => ['sometimes', 'nullable', 'string'],
+            'started_at' => ['sometimes', 'nullable', 'date'],
+            'status' => ['sometimes', Rule::enum(ProjectStatus::class)],
         ];
     }
 }

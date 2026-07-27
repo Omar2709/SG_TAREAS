@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Team;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class TeamPolicy
 {
@@ -15,7 +14,7 @@ class TeamPolicy
 
     public function view(User $user, Team $team): bool
     {
-        return $team->owner_id === $user->id || $team->members()->where('user_id', $user->id)->exists();
+        return $team->hasMember($user);
     }
 
     public function create(User $user): bool
@@ -25,29 +24,32 @@ class TeamPolicy
 
     public function update(User $user, Team $team): bool
     {
-        return $team->owner_id === $user->id;
+        return $team->userIsOwner($user);
     }
 
     public function delete(User $user, Team $team): bool
     {
-        return $team->owner_id === $user->id;
+        return $team->userIsOwner($user);
     }
 
     public function addMember(User $user, Team $team): bool
     {
-        $membership = $team->members()->where('user_id', $user->id)->first();
+        return $team->userCanManage($user);
+    }
 
-        return $membership?->role === 'owner' || $membership?->role === 'admin';
+    public function createProject(User $user, Team $team): bool
+    {
+        return $team->userCanManage($user);
     }
 
     public function updateMember(User $user, Team $team): bool
     {
-        return $team->owner_id === $user->id;
+        return $team->userIsOwner($user);
     }
 
     public function removeMember(User $user, Team $team): bool
     {
-        return $team->owner_id === $user->id || $team->members()->where('user_id', $user->id)->exists();
+        return $team->hasMember($user);
     }
 
     public function restore(User $user, Team $team): bool
